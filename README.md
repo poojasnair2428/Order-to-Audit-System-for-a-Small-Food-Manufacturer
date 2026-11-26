@@ -32,7 +32,7 @@ This prototype implements a **single-entry, ledger-driven Order-to-Audit system*
    cd snack-erp
  ```
 
-1.Create and activate a virtual environment:
+ 1.Create and activate a virtual environment:
 
  ```bash
  python -m venv venv
