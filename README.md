@@ -1,6 +1,6 @@
 # Order-to-Audit ERP System — Sri Murugan Snacks
 
-**Submitted for:** Summer/Winter Internship Shortlisting Task — Centre for Digital Infrastructure, NIT Tiruchirappalli  
+**Submitted for:** Winter Internship Shortlisting Task — Centre for Digital Infrastructure, NIT Tiruchirappalli  
 **Domain:** End-to-End Manufacturing, Inventory Ledger, GST Billing & Audit Reporting for a Small-Scale Packaged Snacks Factory
 
 ---
