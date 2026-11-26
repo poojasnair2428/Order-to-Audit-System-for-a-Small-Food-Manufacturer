@@ -30,7 +30,7 @@ This prototype implements a **single-entry, ledger-driven Order-to-Audit system*
    ```bash
    git clone <your-repo-url>
    cd snack-erp
-```
+ ```
 
 1.Create and activate a virtual environment:
 
