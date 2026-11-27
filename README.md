@@ -1,7 +1,8 @@
 # Order-to-Audit ERP System — Sri Murugan Snacks
 
 **Submitted for:** Winter Internship Shortlisting Task — Centre for Digital Infrastructure, NIT Tiruchirappalli  
-**Domain:** End-to-End Manufacturing, Inventory Ledger, GST Billing & Audit Reporting for a Small-Scale Packaged Snacks Factory
+**Domain:** End-to-End Manufacturing, Inventory Ledger, GST Billing & Audit Reporting for a Small-Scale Packaged Snacks Factory  
+**Demo Video:** `<PASTE_YOUR_UNLISTED_YOUTUBE_OR_DRIVE_LINK_HERE>`
 
 ---
 
@@ -19,7 +20,7 @@ This prototype implements a **single-entry, ledger-driven Order-to-Audit system*
 
 * **Backend (`Python 3.11` + `FastAPI`):** Selected for clean, readable business logic, rapid form/API routing, and strict server-side validation without boilerplate overhead.
 * **Database & ORM (`SQLite` + `SQLAlchemy`):** Zero-configuration relational persistence bundled cleanly for single-command local execution and Docker deployment. Inventory balances are derived dynamically from an append-only `StockLedger` table rather than mutable balance columns.
-* **Frontend & Document Exports (`HTML` + `Tailwind CSS`, `fpdf2`, `openpyxl`):** Server-rendered responsive interfaces tailored to mobile field salesmen and desktop factory staff, paired with compliant GST PDF invoice generation and multi-sheet Excel workbooks for auditors.
+* **Frontend & Document Exports (`HTML` + `Tailwind CSS`, `fpdf2`, `openpyxl`):** Server-rendered responsive interfaces tailored to mobile field salesmen and desktop factory staff (including a bilingual English/Tamil floor UI), paired with compliant GST PDF invoice generation and multi-sheet Excel workbooks for auditors.
 
 ---
 
@@ -48,19 +49,19 @@ This prototype implements a **single-entry, ledger-driven Order-to-Audit system*
    ```bash
    uvicorn app:app --reload
    ```
-5. Open **`[http://127.0.0.1:8000](http://127.0.0.1:8000)`** in your browser.
+5. Open **`http://127.0.0.1:8000`** in your browser.
 
 ### Option B: Run with Docker (Single Command)
 ```bash
 docker build -t snack-erp .
 docker run -p 8000:8000 snack-erp
 ```
-Open **`[http://127.0.0.1:8000](http://127.0.0.1:8000)`** in your browser.
+Open **`http://127.0.0.1:8000`** in your browser.
 
 ### Test Logins / Role Access
 Select any role directly from the home screen (`/`):
 * **Salesman (`salesman_a`, `salesman_b`):** Mobile-friendly order entry & order status tracker (`/salesman`)
-* **Production Supervisor (`supervisor`):** Raw-material purchase logging, live stock view & BOM production run entry (`/production`)
+* **Production Supervisor (`supervisor`):** Raw-material purchase logging, live stock view, production planner & BOM production run entry in English/Tamil (`/production`)
 * **Factory Admin (`admin`):** Order verification, stock shortage check, GST invoicing, PDF download & payment recording (`/admin`)
 * **Accountant / Auditor (`auditor`):** Read-only traceable stock ledger & monthly Excel report download (`/auditor`)
 * **Factory Owner (`owner`):** Executive KPI dashboard showing unit cost, receivables & variance alerts (`/owner`)
@@ -83,6 +84,8 @@ Select any role directly from the home screen (`/`):
 | **Should Have** | Cost per packet with overheads | Implemented | Weighted-average material valuation + direct batch labour & power/gas allocation |
 | **Should Have** | Variance alerts beyond tolerance (`>3%`) | Implemented | Automatically flags deviations exceeding +/- 3% on production runs and Owner dashboard |
 | **Should Have** | Owner executive dashboard | Implemented | Live summary of latest unit cost, gross margin, receivables, and variance alerts |
+| **Stretch Goal** | Production planning from pending orders | Implemented | Calculates net shortfall (`pending orders - available stock`) and recommends exact batches needed |
+| **Stretch Goal** | Tamil language interface for floor staff | Implemented | One-click `EN / தமிழ்` toggle on the Production Supervisor floor workspace |
 
 ---
 
@@ -146,7 +149,7 @@ snack-erp/
 ├── models.py           # SQLAlchemy relational database schema & ledger tables
 ├── seed.py             # Loads Section 5 master data, BOM, opening balances & customers
 ├── engine.py           # Core business logic: weighted-avg costing, BOM variance, GST & ledger ops
-├── app.py              # FastAPI web application, role-based UI, PDF invoice & Excel export
+├── app.py              # FastAPI web application, role-based UI, Tamil toggle, PDF invoice & Excel export
 ├── test_benchmark.py   # Automated verification script for Section 5 benchmark checks
 ├── requirements.txt    # Python dependencies
 ├── Dockerfile          # Single-command container setup
