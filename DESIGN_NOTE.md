@@ -98,22 +98,18 @@ $$\text{Yield Variance \%} = \frac{\text{Actual Good Packets} - \text{Expected Y
 
 ---
 
-## 4. Costing, Valuation & GST Rules
+## 4. Costing, GST Rules & Production Planning
 
-### A. Inventory Valuation: Weighted Average Cost
-Before deducting ingredients for a production run, the engine calculates each material's weighted average rate from all `OPENING` and `PURCHASE` ledger entries:
+### A. Inventory Valuation & Unit Costing
+* **Weighted Average Valuation:** Before deducting ingredients for a production run, the engine computes each material's weighted average rate from all `OPENING` and `PURCHASE` ledger entries (`Flour`: `(100 kg x Rs. 42 + 60 kg x Rs. 45) / 160 kg = Rs. 43.125/kg`).
+* **Overhead Allocation & Unit Cost:** Direct batch overheads (`Rs. 1,200` labour + `Rs. 600` gas/power = `Rs. 1,800`) are allocated 100% to the batch's good output (`188` packets):
+  $$\text{Cost per Packet} = \frac{\text{Rs. } 4,055.00\text{ (Materials + Packaging incl. Scrap)} + \text{Rs. } 1,800.00\text{ (Overheads)}}{188\text{ packets}} = \text{Rs. } 31.14$$
 
-$$\text{Weighted Avg Rate} = \frac{\sum (\text{Qty}_{\text{in}} \times \text{Unit Cost}_{\text{in}})}{\sum \text{Qty}_{\text{in}}}$$
-
-* *Benchmark Verification:* Flour opening stock (`100 kg @ Rs. 42.00 = Rs. 4,200`) + new purchase (`60 kg @ Rs. 45.00 = Rs. 2,700`) yields `Rs. 6,900 / 160 kg = Rs. 43.125/kg`.
-
-### B. Overhead Allocation & Unit Cost
-Direct batch overheads (`Rs. 1,200` labour + `Rs. 600` gas/power = `Rs. 1,800`) are allocated 100% to the batch's good output (`188` packets):
-
-$$\text{Cost per Packet} = \frac{\text{Raw Material Cost} + \text{Packaging Cost (incl. Scrap)} + \text{Batch Overheads}}{\text{Actual Good Packets Produced}}$$
-
-For Benchmark Run #1: `(Rs. 4,055.00 + Rs. 1,800.00) / 188 = Rs. 31.14 / packet`.
-
-### C. GST Place-of-Supply Rule & Extensibility
-* **GST Tax Split:** Comparing `Customer.state` against the factory state (`Tamil Nadu`) automatically routes 5% GST into `2.5% CGST + 2.5% SGST` for intra-state orders (`Retailer A`) or `5.0% IGST` for inter-state orders (`Distributor B`).
+### B. GST Place-of-Supply Rule & Multi-Pack Extensibility
+* **GST Tax Split:** Comparing `Customer.state` against the factory state (`Tamil Nadu`) routes 5% GST into `2.5% CGST + 2.5% SGST` for intra-state orders (`Retailer A`) or `5.0% IGST` for inter-state orders (`Distributor B`).
 * **Multi-Pack Extensibility:** Because `RecipeBOM` maps a finished SKU to raw materials via `std_qty_base` and `expected_yield_pcs`, adding a new pack size (e.g., **Murukku 500 g** yielding `80` packets per `40 kg` flour batch) requires only adding a new `Item` row and corresponding `RecipeBOM` rows—requiring zero schema or engine modifications.
+
+### C. Demand-Driven Production Planning & Floor Localization
+* **Pending-Order Batch Planner:** The system aggregates unfulfilled demand (`SUBMITTED` and `SHORTAGE_HOLD` orders), subtracts live finished-goods inventory, and computes required production batches:
+  $$\text{Recommended Batches} = \left\lceil \frac{\max(0,\ \text{Pending Demand} - \text{Available Stock})}{\text{Expected Batch Yield}} \right\rceil$$
+* **Shop-Floor Localization (`EN / தமிழ்`):** The Production Supervisor workspace supports instant language switching between English and Tamil without altering underlying ledger units or audit logs.
