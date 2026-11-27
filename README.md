@@ -2,7 +2,7 @@
 
 **Submitted for:** Winter Internship Shortlisting Task — Centre for Digital Infrastructure, NIT Tiruchirappalli  
 **Domain:** End-to-End Manufacturing, Inventory Ledger, GST Billing & Audit Reporting for a Small-Scale Packaged Snacks Factory  
-**Demo Video:** `<PASTE_YOUR_UNLISTED_YOUTUBE_OR_DRIVE_LINK_HERE>`
+**Demo Video:** `https://youtu.be/FTupPNifrWk?si=7rB0kWmCXEFh43gV`
 
 ---
 
