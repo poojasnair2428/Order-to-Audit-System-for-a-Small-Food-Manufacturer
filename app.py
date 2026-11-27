@@ -1,4 +1,5 @@
 import io
+import math
 from fastapi import FastAPI, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -23,6 +24,22 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# --- STRETCH GOAL 1 HELPER: PRODUCTION PLANNING FROM PENDING ORDERS ---
+def get_production_plan(db: Session, item_id: int) -> str:
+    avail = get_stock_base(db, item_id)
+    pending_qty = db.query(func.sum(Order.qty_packets)).filter(
+        Order.item_id == item_id,
+        Order.status.in_(["SUBMITTED", "SHORTAGE_HOLD"])
+    ).scalar() or 0
+
+    if pending_qty == 0:
+        return f"Pending Orders: 0 pkts | Available Stock: {avail} pkts — Stock covers all current orders."
+    shortfall = max(0, pending_qty - avail)
+    if shortfall == 0:
+        return f"Pending Orders: {pending_qty} pkts | Available Stock: {avail} pkts — Sufficient stock to fulfil all pending orders."
+    batches_needed = math.ceil(shortfall / 200)
+    return f"Pending Orders: {pending_qty} pkts | Available: {avail} pkts | Shortfall: {shortfall} pkts → Recommended Plan: Make {batches_needed} batch ({batches_needed * 200} pkts) to fulfil pending orders."
 
 # --- HTML LAYOUT HELPER (Tailwind CSS via CDN) ---
 def render_page(title: str, role: str, body_html: str, banner: str = ""):
@@ -71,7 +88,7 @@ def render_page(title: str, role: str, body_html: str, banner: str = ""):
 def login_page():
     roles = [
         ("Salesman (Mobile View)", "/salesman?role=salesman", "Place customer orders on mobile & track status"),
-        ("Production Supervisor", "/production?role=production", "Record raw material purchases & daily production runs"),
+        ("Production Supervisor (EN / தமிழ்)", "/production?role=production", "Record raw material purchases & daily production runs"),
         ("Factory Admin", "/admin?role=admin", "Verify orders, check stock, raise GST invoices & record payments"),
         ("Accountant / Auditor (Read-Only)", "/auditor?role=auditor", "View ledgers, GST summary & download Excel reports"),
         ("Factory Owner", "/owner?role=owner", "Executive KPI summary, variance alerts & unit cost"),
@@ -151,13 +168,32 @@ def submit_order(salesman_name: str = Form(...), customer_id: int = Form(...), i
     o = create_order(db, salesman_name, customer_id, item_id, qty_packets)
     return RedirectResponse(f"/salesman?msg=Order+%23{o.id}+submitted+successfully!", status_code=303)
 
-# --- 3. PRODUCTION SUPERVISOR VIEW ---
+# --- 3. PRODUCTION SUPERVISOR VIEW (WITH TAMIL TOGGLE & PRODUCTION PLANNER) ---
 @app.get("/production", response_class=HTMLResponse)
-def production_view(msg: str = "", db: Session = Depends(get_db)):
+def production_view(msg: str = "", lang: str = "en", db: Session = Depends(get_db)):
+    ta = (lang == "ta")
+    t = {
+        "pur_title": "1. மூலப்பொருள் கொள்முதல் பதிவு (Raw Material Purchase)" if ta else "1. Record Raw Material Purchase",
+        "pur_btn": "கொள்முதல் சேமி (Record Purchase)" if ta else "Record Purchase",
+        "stk_title": "தற்போதைய இருப்பு (Live Stock Ledger)" if ta else "Current Stock Balances (Live Ledger)",
+        "run_title": "2. தினசரி உற்பத்தி பதிவு (Daily Production Run)" if ta else "2. Log Daily Production Run (BOM: 40 kg Flour, 10 L Oil, 1.2 kg Spice → 200 pkts)",
+        "prod_lbl": "தயாரிப்பு (Product)" if ta else "Product",
+        "flour_lbl": "மாவு (Flour kg)" if ta else "Flour Used (kg)",
+        "oil_lbl": "சமையல் எண்ணெய் (Oil L)" if ta else "Oil Used (L)",
+        "spice_lbl": "மசாலா & உப்பு (Spice kg)" if ta else "Spice Used (kg)",
+        "good_lbl": "நல்ல பாக்கெட்டுகள் (Good Packets)" if ta else "Actual Good Packets",
+        "dmg_lbl": "சேதமடைந்த பைகள் (Damaged Pouches)" if ta else "Damaged Pouches",
+        "ctn_lbl": "அட்டைப்பெட்டிகள் (Cartons Used)" if ta else "Cartons Used",
+        "lab_lbl": "தொழிலாளர் கூலி (Labour ₹)" if ta else "Direct Labour (₹)",
+        "ovh_lbl": "மின்சாரம் & எரிவாயு (Gas/Power ₹)" if ta else "Gas & Power (₹)",
+        "run_btn": "உற்பத்தியை பதிவு செய் (Post Production Run)" if ta else "Post Production Run & Update Stock",
+    }
+
     raw_items = db.query(Item).filter_by(category="RAW").all()
     finished_items = db.query(Item).filter_by(category="FINISHED").all()
     all_items = db.query(Item).all()
     runs = db.query(ProductionRun).order_by(ProductionRun.id.desc()).all()
+    plan_text = get_production_plan(db, finished_items[0].id)
 
     raw_opts = "".join(f'<option value="{r.id}">{r.name} ({r.display_unit})</option>' for r in raw_items)
     fin_opts = "".join(f'<option value="{f.id}">{f.name}</option>' for f in finished_items)
@@ -175,10 +211,21 @@ def production_view(msg: str = "", db: Session = Depends(get_db)):
       <td class="p-2 text-xs {'text-red-700 font-semibold' if 'variance' in r.variance_notes else 'text-green-700'}">{r.variance_notes}</td>
     </tr>""" for r in runs)
 
+    lang_toggle = (
+        '<a href="/production?role=production&lang=en" class="px-3 py-1 rounded bg-stone-800 text-white text-xs font-bold">Switch to English</a>'
+        if ta else
+        '<a href="/production?role=production&lang=ta" class="px-3 py-1 rounded bg-amber-700 text-white text-xs font-bold">தமிழ் மொழி (Tamil Floor UI)</a>'
+    )
+
     body = f"""
+    <div class="bg-blue-50 border-l-4 border-blue-600 text-blue-900 p-3 mb-4 rounded flex flex-wrap justify-between items-center gap-2">
+      <div class="text-sm font-semibold">📋 Production Planner: {plan_text}</div>
+      <div>{lang_toggle}</div>
+    </div>
+
     <div class="grid md:grid-cols-2 gap-6">
       <div class="bg-white p-5 rounded-lg shadow">
-        <h2 class="text-lg font-bold mb-3">1. Record Raw Material Purchase</h2>
+        <h2 class="text-lg font-bold mb-3">{t['pur_title']}</h2>
         <form method="post" action="/production/purchase" class="space-y-3">
           <input type="text" name="supplier" value="Sri Murugan Agro" required class="w-full border rounded p-2" placeholder="Supplier Name">
           <select name="item_id" class="w-full border rounded p-2 bg-white">{raw_opts}</select>
@@ -186,28 +233,28 @@ def production_view(msg: str = "", db: Session = Depends(get_db)):
             <input type="number" step="0.01" name="qty" placeholder="Qty (e.g. 60)" required class="border rounded p-2">
             <input type="number" step="0.01" name="rate" placeholder="Rate ₹ (e.g. 45)" required class="border rounded p-2">
           </div>
-          <button type="submit" class="w-full bg-stone-800 text-white py-2 rounded font-semibold">Record Purchase</button>
+          <button type="submit" class="w-full bg-stone-800 text-white py-2 rounded font-semibold">{t['pur_btn']}</button>
         </form>
       </div>
 
       <div class="bg-white p-5 rounded-lg shadow">
-        <h2 class="text-lg font-bold mb-3">Current Stock Balances (Live Ledger)</h2>
+        <h2 class="text-lg font-bold mb-3">{t['stk_title']}</h2>
         <table class="w-full text-sm text-left"><thead><tr class="border-b bg-stone-50"><th class="p-2">Item</th><th class="p-2">Type</th><th class="p-2">Closing Balance</th></tr></thead><tbody>{stock_rows}</tbody></table>
       </div>
 
       <div class="md:col-span-2 bg-white p-5 rounded-lg shadow">
-        <h2 class="text-lg font-bold mb-3">2. Log Daily Production Run (BOM: 40 kg Flour, 10 L Oil, 1.2 kg Spice → 200 pkts)</h2>
+        <h2 class="text-lg font-bold mb-3">{t['run_title']}</h2>
         <form method="post" action="/production/run" class="grid md:grid-cols-4 gap-3">
-          <div><label class="text-xs font-semibold">Product</label><select name="finished_item_id" class="w-full border rounded p-2 bg-white">{fin_opts}</select></div>
-          <div><label class="text-xs font-semibold">Flour Used (kg)</label><input type="number" step="0.01" name="flour_kg" value="40" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Oil Used (L)</label><input type="number" step="0.01" name="oil_l" value="10.5" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Spice Used (kg)</label><input type="number" step="0.01" name="spice_kg" value="1.2" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Actual Good Packets</label><input type="number" name="good_pkts" value="188" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Damaged Pouches</label><input type="number" name="damaged_pouches" value="6" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Cartons Used</label><input type="number" name="cartons_used" value="9" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Direct Labour (₹)</label><input type="number" step="0.01" name="labour" value="1200" required class="w-full border rounded p-2"></div>
-          <div><label class="text-xs font-semibold">Gas & Power (₹)</label><input type="number" step="0.01" name="overhead" value="600" required class="w-full border rounded p-2"></div>
-          <div class="md:col-span-3 flex items-end"><button type="submit" class="w-full bg-amber-800 hover:bg-amber-700 text-white py-2 rounded font-bold">Post Production Run & Update Stock</button></div>
+          <div><label class="text-xs font-semibold">{t['prod_lbl']}</label><select name="finished_item_id" class="w-full border rounded p-2 bg-white">{fin_opts}</select></div>
+          <div><label class="text-xs font-semibold">{t['flour_lbl']}</label><input type="number" step="0.01" name="flour_kg" value="40" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['oil_lbl']}</label><input type="number" step="0.01" name="oil_l" value="10.5" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['spice_lbl']}</label><input type="number" step="0.01" name="spice_kg" value="1.2" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['good_lbl']}</label><input type="number" name="good_pkts" value="188" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['dmg_lbl']}</label><input type="number" name="damaged_pouches" value="6" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['ctn_lbl']}</label><input type="number" name="cartons_used" value="9" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['lab_lbl']}</label><input type="number" step="0.01" name="labour" value="1200" required class="w-full border rounded p-2"></div>
+          <div><label class="text-xs font-semibold">{t['ovh_lbl']}</label><input type="number" step="0.01" name="overhead" value="600" required class="w-full border rounded p-2"></div>
+          <div class="md:col-span-3 flex items-end"><button type="submit" class="w-full bg-amber-800 hover:bg-amber-700 text-white py-2 rounded font-bold">{t['run_btn']}</button></div>
         </form>
       </div>
 
@@ -245,6 +292,7 @@ def post_run(
 def admin_view(msg: str = "", db: Session = Depends(get_db)):
     murukku = db.query(Item).filter_by(category="FINISHED").first()
     avail_stock = get_stock_base(db, murukku.id)
+    plan_text = get_production_plan(db, murukku.id)
     orders = db.query(Order).order_by(Order.id.desc()).all()
     invoices = db.query(Invoice).order_by(Invoice.id.desc()).all()
 
@@ -282,9 +330,12 @@ def admin_view(msg: str = "", db: Session = Depends(get_db)):
         </tr>"""
 
     body = f"""
-    <div class="bg-white p-4 rounded-lg shadow mb-6 flex justify-between items-center">
-      <span class="font-bold">Finished Goods Available (Murukku 200g):</span>
-      <span class="text-xl font-bold text-amber-900">{avail_stock} packets</span>
+    <div class="bg-white p-4 rounded-lg shadow mb-4 flex flex-wrap justify-between items-center gap-2">
+      <div>
+        <span class="font-bold">Finished Goods Available (Murukku 200g):</span>
+        <span class="text-xl font-bold text-amber-900 ml-2">{avail_stock} packets</span>
+      </div>
+      <div class="text-xs bg-blue-50 text-blue-900 px-3 py-1.5 rounded font-semibold">📋 {plan_text}</div>
     </div>
     <div class="bg-white p-5 rounded-lg shadow mb-6">
       <h2 class="text-lg font-bold mb-3">Incoming Sales Orders</h2>
